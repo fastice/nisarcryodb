@@ -7,7 +7,7 @@ Created on Thu Mar  7 08:37:18 2024
 """
 
 
-__all__ = ['nisarStation']
+__all__ = ['nisardb']
 
 
-from nisargps.nisarStation import nisarStation
+from nisarcryodb.nisarcryodb import nisarcryodb
