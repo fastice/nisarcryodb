@@ -125,9 +125,9 @@ class nisarcryodb():
             List of the tables
         '''
         # 
-        query = "SELECT tablename FROM pg_catalog.pg_tables WHERE ' \
-            'schema_name = %(schemaName)s;"
-        self.cursor.execute(query, {'schema_name': schemaName})
+        query = "SELECT tablename FROM pg_catalog.pg_tables WHERE " \
+            "schemaname = %(schema_Name)s;"
+        self.cursor.execute(query, {'schema_Name': schemaName})
         tables = [k[0] for k in self.cursor.fetchall()]
         if not quiet:
             print(*tables, sep='\n')
@@ -198,7 +198,7 @@ class nisarcryodb():
         self.cursor.execute(query.format(sql.Identifier(columnName)))
         return [k[0] for k in self.cursor.fetchall()]
 
-    def getStationsInformation(self, schemaName='landice',
+    def getStationsListing(self, schemaName='landice',
                                tableName='gps_station'):
         '''
         Get the station information (e.g. station_id, station_name, ref_lat...)
@@ -288,7 +288,7 @@ class nisarcryodb():
         # return result for specified 
         return lookup['station_id']
     
-    def closeDB(self):
+    def close(self):
         '''
         Close the cursor and connection
 
