@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "nisarCalValDB"
+name = "nisarcryodb"
 version = "0.0.1"
 description = "Tools for NISAR GPS cal/val data"
 authors = ["Ian Joughin <irj@uw.edu>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/fastice/nisarCalValDB"
-repository = "https://github.com/fastice/nisarCalValDB"
+homepage = "https://github.com/fastice/nisarcryodb"
+repository = "https://github.com/fastice/nisarcryodb"
 keywords = ["SAR", "NISAR"]
 
 [tool.poetry.dependencies]
