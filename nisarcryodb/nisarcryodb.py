@@ -5,13 +5,14 @@ Created on Thu Mar  7 08:31:25 2024
 
 @author: ian
 """
-
+import functools
 import os
 import psycopg2
 import getpass
 import configparser
 from psycopg2 import sql
 import pandas as pd
+from datetime import datetime
 
 class nisarcryodb():
     '''
@@ -35,9 +36,22 @@ class nisarcryodb():
         None.
 
         '''
-        
+        self.connection = None
         self._initDB(configFile)
 
+    def rollBackOnError(func):
+        @functools.wraps(func)
+        def rollBackInner(inst, *args, **kwargs):
+            try:
+                return func(inst, *args, **kwargs)
+            except Exception as errMsg:
+                print(f'Error in: {type(inst).__name__}.{func.__name__} \n\t{errMsg}')
+                if inst.connection is not None:
+                    print('Rolling back connection')
+                    inst.connection.rollback()
+        return rollBackInner
+
+    @rollBackOnError
     def _initDB(self, configFile):
         ''' 
         Establish a connection to the database based on Brandi's Notebook
@@ -87,9 +101,9 @@ class nisarcryodb():
                                            password=password)  
         self.cursor = self.connection.cursor()
         
+    @rollBackOnError
     def listSchema(self, quiet=False):
         '''
-        
         List all schema in the database
         Parameters
         ----------
@@ -109,7 +123,8 @@ class nisarcryodb():
         if not quiet:
             print(*schemas, sep='\n')
         return schemas
-
+    
+    @rollBackOnError
     def listSchemaTableNames(self, schemaName, quiet=False):
         '''
         Parameters
@@ -133,6 +148,7 @@ class nisarcryodb():
             print(*tables, sep='\n')
         return tables
 
+    @rollBackOnError
     def listTableColumns(self, schemaName, tableName, returnType=False, quiet=False):
         '''
         List the column nmes for a table
@@ -164,6 +180,7 @@ class nisarcryodb():
         columns = self.cursor.fetchall()
         #
         columnNames = [k[0] for k in columns]
+        #
         if not quiet:
             print(', '.join(columnNames))
         if returnType:
@@ -173,6 +190,7 @@ class nisarcryodb():
             return columnNames, types
         return columnNames
 
+    @rollBackOnError
     def getColumn(self, schemaName, tableName, columnName):
         '''
         Get values for a column schemaName.tableName
@@ -198,7 +216,8 @@ class nisarcryodb():
         self.cursor.execute(query.format(sql.Identifier(columnName)))
         return [k[0] for k in self.cursor.fetchall()]
 
-    def getStationsListing(self, schemaName='landice',
+    @rollBackOnError
+    def getTableListing(self, schemaName='landice',
                                tableName='gps_station'):
         '''
         Get the station information (e.g. station_id, station_name, ref_lat...)
@@ -220,8 +239,9 @@ class nisarcryodb():
         self.cursor.execute(query, {})
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
-                                                          tableName))
-        
+                                                          tableName, quiet=True))
+          
+    @rollBackOnError 
     def getStationDateRangeData(self, stationName, d1, d2, 
                                 schemaName='landice', tableName='gps_data'):
         '''
@@ -233,7 +253,7 @@ class nisarcryodb():
         stationName : str
             Station name (e.g., NIT3).
         d1 : float
-            Decimal date for start of window.
+            Decimal date for end of window.
         d2 : float
             Decimal date for start of window.
         schemaName : str, optional
@@ -252,11 +272,109 @@ class nisarcryodb():
             "BETWEEN %(val1)s AND %(val2)s AND station_id = %(station_id)s;"
         #
         self.cursor.execute(query,
-                            {'val1': d1, 'val2': d2, 'station_id': stationID})
+                            {'val1': d1, 'val2': d2, 'station_id': stationID});
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
-                                                          tableName))
+                                                          tableName, quiet=True))
 
+    def _dateToStr(self, date, format='%Y-%m-%d'):
+        '''
+        Take a date as str or datetime and return str with format
+        '''
+        if isinstance(date, datetime):
+            return date.strftime(format)
+        return date
+        
+    @rollBackOnError 
+    def getL3DateRangeData(self, date1, date2, 
+                                schemaName='landice', tableName='l3_product', filters=None):
+        '''
+        Return as a pandas data fram the results for stationName for the 
+        inveral date1 <= start_date and end_date <= date2
+
+        Parameters
+        ----------
+        stationName : str
+            Station name (e.g., NIT3).
+        date1 : "%Y-%m-%d" or datetime
+            ASCII or datetime date for start of window.
+        date2 :  "%Y-%m-%d" or datetime
+            ASCII or datetime for end of window.
+        schemaName : str, optional
+            Schema name. The default is 'landice'
+        tableName : str, optional
+            Name of data table. The default is 'l3_product'.
+        filters : dict, optional
+            dict with field to filter and value to filter 
+            (e.g., {'product_path': '%vv%'}, where % is a SQL wildcard)
+            Default is None
+    
+        Returns
+        -------
+        pandas data frame
+            GPS data for the station and date range..
+
+        '''
+        date1 = self._dateToStr(date1)
+        date2 = self._dateToStr(date2)
+        #
+        # Add additional filters to date filters
+        substitutions = {'val1': date1, 'val2': date2}
+        filterString = ''
+        for filt in filters:
+            print(filt)
+            filterString += f" AND {filt} LIKE %({filt})s"
+            substitutions[filt] = filters[filt]
+        # 
+        query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
+                f"start_date >= %(val1)s AND end_date <= %(val2)s " \
+                f"{filterString} ORDER BY product_id;"
+        #
+        self.cursor.execute(query, substitutions)
+        return pd.DataFrame(self.cursor.fetchall(),
+                            columns=self.listTableColumns(schemaName,
+                                                          tableName, quiet=True))
+    @rollBackOnError
+    def getL3DateRangeProducts(self, date1, date2, 
+                                schemaName='landice', tableName='l3_product', filters=None):
+        '''
+        Return as a pandas data fram the results for stationName for the 
+        inveral date1 <= start_date and end_date <= date2
+
+        Parameters
+        ----------
+        stationName : str
+            Station name (e.g., NIT3).
+        date1 : "%Y-%m-%d" or datetime
+            ASCII or datetime date for start of window.
+        date2 :  "%Y-%m-%d" or datetime
+            ASCII or datetime for end of window.
+        schemaName : str, optional
+            Schema name. The default is 'landice'
+        tableName : str, optional
+            Name of data table. The default is 'l3_product'.
+
+        Returns
+        -------
+        pandas data frame
+            GPS data for the station and date range.
+        '''
+        result = self.getL3DateRangeData(date1, date2, 
+                                        schemaName=schemaName,
+                                        tableName=tableName,
+                                        filters=filters)
+        # 
+        products = {}
+        for row in result.iterrows():
+            key = f"{row[1]['start_date']}.{row[1]['end_date']}"
+            if key not in products:
+                products[key] = {}
+            for component in ['vx', 'vy', 'vv']:
+                if component in row[1]['product_path']:
+                    products[key][component] = row[1]['product_path']
+        return products
+    
+    @rollBackOnError
     def stationNameToID(self, stationName, 
                         schemaName='landice', tableName='gps_station'):  
         '''
@@ -288,6 +406,7 @@ class nisarcryodb():
         # return result for specified 
         return lookup['station_id']
     
+    @rollBackOnError
     def close(self):
         '''
         Close the cursor and connection
