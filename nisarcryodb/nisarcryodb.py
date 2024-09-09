@@ -14,22 +14,23 @@ from psycopg2 import sql
 import pandas as pd
 from datetime import datetime
 
+
 class nisarcryodb():
     '''
-    Abstract class to define parser for NISAR HDF products. Based on examples 
+    Abstract class to query nisar cal/val database. Based on examples
     provided by Brandi and Catalina.
     '''
 
 #    __metaclass__ = ABCMeta
 
-    def __init__(self, configFile='calvaldb_config.ini'):
+    def __init__(self, configFile='./calvaldb_config.ini'):
         '''
         Class for retrieving cryo data from NISAR cal/val database
 
         Parameters
         ----------
         configFile : str, optional
-            Data base cconfig file. The default is 'calvaldb_config.ini'.
+            Data base cconfig file. The default is './calvaldb_config.ini'.
 
         Returns
         -------
@@ -40,12 +41,15 @@ class nisarcryodb():
         self._initDB(configFile)
 
     def rollBackOnError(func):
+        ''' Error handler (decorator) to automatically do database rollback
+        when something goes wrong '''
         @functools.wraps(func)
         def rollBackInner(inst, *args, **kwargs):
             try:
                 return func(inst, *args, **kwargs)
             except Exception as errMsg:
-                print(f'Error in: {type(inst).__name__}.{func.__name__} \n\t{errMsg}')
+                print(f'Error in: {type(inst).__name__}.{func.__name__}'
+                      f'\n\t{errMsg}')
                 if inst.connection is not None:
                     print('Rolling back connection')
                     inst.connection.rollback()
@@ -53,13 +57,13 @@ class nisarcryodb():
 
     @rollBackOnError
     def _initDB(self, configFile):
-        ''' 
+        '''
         Establish a connection to the database based on Brandi's Notebook
-        
+
         Parameters
         ----------
         configFile : str, optional
-            Data base cconfig file. The default is 'calvaldb_config.ini'.
+            Data base config file. The default is 'calvaldb_config.ini'.
 
         Returns
         -------
@@ -68,7 +72,7 @@ class nisarcryodb():
         '''
         if configFile is not None:
             self.configFile = configFile
-            
+
         file = os.path.expanduser(self.configFile)
         #
         # Check if the file exists
@@ -89,18 +93,18 @@ class nisarcryodb():
         #
         if not dbname or not host or not port:
             raise Exception("Missing required properties")
-        #    
-        # Get username and password    
+        #
+        # Get username and password
         user = input('User name: ')
         password = getpass.getpass('Password: ')
         #
         self.connection = psycopg2.connect(dbname=dbname,
                                            host=host,
-                                           port=port, 
+                                           port=port,
                                            user=user,
-                                           password=password)  
+                                           password=password)
         self.cursor = self.connection.cursor()
-        
+
     @rollBackOnError
     def listSchema(self, quiet=False):
         '''
@@ -123,14 +127,14 @@ class nisarcryodb():
         if not quiet:
             print(*schemas, sep='\n')
         return schemas
-    
+
     @rollBackOnError
     def listSchemaTableNames(self, schemaName, quiet=False):
         '''
         Parameters
         ----------
-        schemaName : TYPE
-            DESCRIPTION.
+        schemaName : str
+            Schema name for query.
         quiet : bool, optional
             Set to true to avoid printing result. The default is False.
 
@@ -139,7 +143,7 @@ class nisarcryodb():
         tables, list.
             List of the tables
         '''
-        # 
+        #
         query = "SELECT tablename FROM pg_catalog.pg_tables WHERE " \
             "schemaname = %(schema_Name)s;"
         self.cursor.execute(query, {'schema_Name': schemaName})
@@ -149,18 +153,20 @@ class nisarcryodb():
         return tables
 
     @rollBackOnError
-    def listTableColumns(self, schemaName, tableName, returnType=False, quiet=False):
+    def listTableColumns(self, schemaName, tableName,
+                         returnType=False, quiet=False):
         '''
         List the column nmes for a table
 
         Parameters
         ----------
         schemaName : str
-            Name of the schema.
+            Name of the schema for query.
         tableName : str
-            Name of the table.
+            Name of the table for query.
         returnType : bool, optional
-            DESCRIPTION. The default is False.
+            Set to true to return the data types for each column. The default
+            is False.
         quiet : bool, optional
             Set to true to avoid printing result. The default is False.
 
@@ -218,7 +224,7 @@ class nisarcryodb():
 
     @rollBackOnError
     def getTableListing(self, schemaName='landice',
-                               tableName='gps_station'):
+                        tableName='gps_station'):
         '''
         Get the station information (e.g. station_id, station_name, ref_lat...)
 
@@ -239,13 +245,14 @@ class nisarcryodb():
         self.cursor.execute(query, {})
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
-                                                          tableName, quiet=True))
-          
-    @rollBackOnError 
-    def getStationDateRangeData(self, stationName, d1, d2, 
+                                                          tableName,
+                                                          quiet=True))
+
+    @rollBackOnError
+    def getStationDateRangeData(self, stationName, d1, d2,
                                 schemaName='landice', tableName='gps_data'):
         '''
-        Return as a pandas data fram the results for stationName for the 
+        Return as a pandas data fram the results for stationName for the
         inveral [d1, d2]
 
         Parameters
@@ -272,10 +279,11 @@ class nisarcryodb():
             "BETWEEN %(val1)s AND %(val2)s AND station_id = %(station_id)s;"
         #
         self.cursor.execute(query,
-                            {'val1': d1, 'val2': d2, 'station_id': stationID});
+                            {'val1': d1, 'val2': d2, 'station_id': stationID})
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
-                                                          tableName, quiet=True))
+                                                          tableName,
+                                                          quiet=True))
 
     def _dateToStr(self, date, format='%Y-%m-%d'):
         '''
@@ -284,12 +292,13 @@ class nisarcryodb():
         if isinstance(date, datetime):
             return date.strftime(format)
         return date
-        
-    @rollBackOnError 
-    def getL3DateRangeData(self, date1, date2, 
-                                schemaName='landice', tableName='l3_product', filters=None):
+
+    @rollBackOnError
+    def getL3DateRangeData(self, date1, date2,
+                           schemaName='landice', tableName='l3_product',
+                           filters=None):
         '''
-        Return as a pandas data fram the results for stationName for the 
+        Return as a pandas data fram the results for stationName for the
         inveral date1 <= start_date and end_date <= date2
 
         Parameters
@@ -305,14 +314,14 @@ class nisarcryodb():
         tableName : str, optional
             Name of data table. The default is 'l3_product'.
         filters : dict, optional
-            dict with field to filter and value to filter 
+            dict with field to filter and value to filter
             (e.g., {'product_path': '%vv%'}, where % is a SQL wildcard)
             Default is None
-    
+
         Returns
         -------
         pandas data frame
-            GPS data for the station and date range..
+            GPS data for the station and date range.
 
         '''
         date1 = self._dateToStr(date1)
@@ -325,7 +334,7 @@ class nisarcryodb():
             print(filt)
             filterString += f" AND {filt} LIKE %({filt})s"
             substitutions[filt] = filters[filt]
-        # 
+        #
         query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
                 f"start_date >= %(val1)s AND end_date <= %(val2)s " \
                 f"{filterString} ORDER BY product_id;"
@@ -333,12 +342,15 @@ class nisarcryodb():
         self.cursor.execute(query, substitutions)
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
-                                                          tableName, quiet=True))
+                                                          tableName,
+                                                          quiet=True))
+
     @rollBackOnError
-    def getL3DateRangeProducts(self, date1, date2, 
-                                schemaName='landice', tableName='l3_product', filters=None):
+    def getL3DateRangeProducts(self, date1, date2,
+                               schemaName='landice', tableName='l3_product',
+                               filters=None):
         '''
-        Return as a pandas data fram the results for stationName for the 
+        Return as a pandas data fram the results for stationName for the
         inveral date1 <= start_date and end_date <= date2
 
         Parameters
@@ -353,17 +365,20 @@ class nisarcryodb():
             Schema name. The default is 'landice'
         tableName : str, optional
             Name of data table. The default is 'l3_product'.
-
+        filters : dict, optional
+            dict with field to filter and value to filter
+            (e.g., {'product_path': '%vv%'}, where % is a SQL wildcard)
+            Default is None
         Returns
         -------
         pandas data frame
             GPS data for the station and date range.
         '''
-        result = self.getL3DateRangeData(date1, date2, 
-                                        schemaName=schemaName,
-                                        tableName=tableName,
-                                        filters=filters)
-        # 
+        result = self.getL3DateRangeData(date1, date2,
+                                         schemaName=schemaName,
+                                         tableName=tableName,
+                                         filters=filters)
+        #
         products = {}
         for row in result.iterrows():
             key = f"{row[1]['start_date']}.{row[1]['end_date']}"
@@ -373,10 +388,10 @@ class nisarcryodb():
                 if component in row[1]['product_path']:
                     products[key][component] = row[1]['product_path']
         return products
-    
+
     @rollBackOnError
-    def stationNameToID(self, stationName, 
-                        schemaName='landice', tableName='gps_station'):  
+    def stationNameToID(self, stationName,
+                        schemaName='landice', tableName='gps_station'):
         '''
         Return the station_id given the station_name
 
@@ -403,9 +418,9 @@ class nisarcryodb():
         values = self.cursor.fetchall()[0]
         keys = self.listTableColumns(schemaName, tableName, quiet=True)
         lookup = dict(zip(keys, values))
-        # return result for specified 
+        # return result for specified
         return lookup['station_id']
-    
+
     @rollBackOnError
     def close(self):
         '''
