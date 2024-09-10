@@ -250,7 +250,8 @@ class nisarcryodb():
 
     @rollBackOnError
     def getStationDateRangeData(self, stationName, d1, d2,
-                                schemaName='landice', tableName='gps_data'):
+                                schemaName='landice', tableName='gps_data', 
+                                filters=None):
         '''
         Return as a pandas data fram the results for stationName for the
         inveral [d1, d2]
@@ -267,7 +268,10 @@ class nisarcryodb():
             Schema name. The default is 'landice'
         tableName : str, optional
             Name of data table. The default is 'gps_data'.
-
+        filters : dict, optional
+            dict with field to filter and value to filter
+            (e.g., {'product_path': '%vv%'}, where % is a SQL wildcard)
+            Default is None
         Returns
         -------
         pandas data frame
@@ -275,11 +279,20 @@ class nisarcryodb():
 
         '''
         stationID = self.stationNameToID(stationName)
-        query = f"SELECT * FROM {schemaName}.{tableName} WHERE decimal_year " \
-            "BETWEEN %(val1)s AND %(val2)s AND station_id = %(station_id)s;"
+        substitutions = {'val1': d1, 'val2': d2, 'station_id': stationID}
         #
+        filterString = ''
+        for filt in filters:
+            print(filt)
+            filterString += f" AND {filt} LIKE %({filt})s"
+            substitutions[filt] = filters[filt]
+        #
+        query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
+            "decimal_year BETWEEN %(val1)s AND %(val2)s AND " \
+            f"station_id = %(station_id)s  {filterString};"
+        # Perform query
         self.cursor.execute(query,
-                            {'val1': d1, 'val2': d2, 'station_id': stationID})
+                            substitutions)
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
                                                           tableName,
