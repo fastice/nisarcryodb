@@ -251,7 +251,7 @@ class nisarcryodb():
     @rollBackOnError
     def getStationDateRangeData(self, stationName, d1, d2,
                                 schemaName='landice', tableName='gps_data', 
-                                filters=None):
+                                filters={}):
         '''
         Return as a pandas data fram the results for stationName for the
         inveral [d1, d2]
@@ -284,12 +284,13 @@ class nisarcryodb():
         filterString = ''
         for filt in filters:
             print(filt)
-            filterString += f" AND {filt} LIKE %({filt})s"
+            filterString += f" AND {filt} = %({filt})s"
             substitutions[filt] = filters[filt]
         #
         query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
             "decimal_year BETWEEN %(val1)s AND %(val2)s AND " \
             f"station_id = %(station_id)s  {filterString};"
+        print(query)
         # Perform query
         self.cursor.execute(query,
                             substitutions)
