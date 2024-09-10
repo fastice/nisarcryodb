@@ -283,14 +283,14 @@ class nisarcryodb():
         #
         filterString = ''
         for filt in filters:
-            print(filt)
+            # print(filt)
             filterString += f" AND {filt} = %({filt})s"
             substitutions[filt] = filters[filt]
         #
         query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
             "decimal_year BETWEEN %(val1)s AND %(val2)s AND " \
             f"station_id = %(station_id)s  {filterString};"
-        print(query)
+        # print(query)
         # Perform query
         self.cursor.execute(query,
                             substitutions)
