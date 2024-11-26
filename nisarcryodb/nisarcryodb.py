@@ -223,8 +223,7 @@ class nisarcryodb():
         return [k[0] for k in self.cursor.fetchall()]
 
     @rollBackOnError
-    def getTableListing(self, schemaName='landice',
-                        tableName='gps_station'):
+    def getTableListing(self, schemaName='landice', tableName='gps_station'):
         '''
         Get the station information (e.g. station_id, station_name, ref_lat...)
 
@@ -278,7 +277,7 @@ class nisarcryodb():
             GPS data for the station and date range..
 
         '''
-        stationID = self.stationNameToID(stationName)
+        stationID = self.stationNameToID(stationName, schemaName=schemaName)
         substitutions = {'val1': d1, 'val2': d2, 'station_id': stationID}
         #
         filterString = ''
