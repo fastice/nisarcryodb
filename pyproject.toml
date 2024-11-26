@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nisarcryodb"
-version = "0.0.1"
+version = "0.0.2"
 description = "Tools for NISAR GPS cal/val data"
 authors = ["Ian Joughin <irj@uw.edu>"]
 license = "MIT"

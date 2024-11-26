@@ -197,10 +197,10 @@ class nisarcryodb():
         return columnNames
 
     @rollBackOnError
-    def getColumn(self, schemaName, tableName, columnName):
+    def getColumn(self, schemaName, tableName, columnName, distinct=False):
         '''
         Get values for a column schemaName.tableName
-
+    
         Parameters
         ----------
         schemaName : str
@@ -209,22 +209,23 @@ class nisarcryodb():
             Name of the table.
         columnName : str
             column name
-
+        distinct : bool, optional
+            Return only unique values if true. The default is False.
         Returns
         -------
         uniqueVals : list
             The values for the column.
-
+    
         '''
-        query = sql.SQL("SELECT DISTINCT {} FROM "
+        distinctOption = {True: 'DISTINCT', False: ''}[distinct]
+        query = sql.SQL(f"SELECT {distinctOption} {{}} FROM "
                         f"{schemaName}.{tableName};")
         #
         self.cursor.execute(query.format(sql.Identifier(columnName)))
         return [k[0] for k in self.cursor.fetchall()]
 
     @rollBackOnError
-    def getTableListing(self, schemaName='landice',
-                        tableName='gps_station'):
+    def getTableListing(self, schemaName='landice', tableName='gps_station'):
         '''
         Get the station information (e.g. station_id, station_name, ref_lat...)
 
@@ -278,7 +279,7 @@ class nisarcryodb():
             GPS data for the station and date range..
 
         '''
-        stationID = self.stationNameToID(stationName)
+        stationID = self.stationNameToID(stationName, schemaName=schemaName)
         substitutions = {'val1': d1, 'val2': d2, 'station_id': stationID}
         #
         filterString = ''

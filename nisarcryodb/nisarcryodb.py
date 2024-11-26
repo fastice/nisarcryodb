@@ -197,10 +197,10 @@ class nisarcryodb():
         return columnNames
 
     @rollBackOnError
-    def getColumn(self, schemaName, tableName, columnName):
+    def getColumn(self, schemaName, tableName, columnName, distinct=False):
         '''
         Get values for a column schemaName.tableName
-
+    
         Parameters
         ----------
         schemaName : str
@@ -209,14 +209,16 @@ class nisarcryodb():
             Name of the table.
         columnName : str
             column name
-
+        distinct : bool, optional
+            Return only unique values if true. The default is False.
         Returns
         -------
         uniqueVals : list
             The values for the column.
-
+    
         '''
-        query = sql.SQL("SELECT DISTINCT {} FROM "
+        distinctOption = {True: 'DISTINCT', False: ''}[distinct]
+        query = sql.SQL(f"SELECT {distinctOption} {{}} FROM "
                         f"{schemaName}.{tableName};")
         #
         self.cursor.execute(query.format(sql.Identifier(columnName)))
