@@ -225,7 +225,7 @@ class nisarcryodb():
         return [k[0] for k in self.cursor.fetchall()]
 
     @rollBackOnError
-    def getTableListing(self, schemaName='landice', tableName='gps_station'):
+    def getTableListing(self, schemaName='landice', tableName='gps_station', filters={}):
         '''
         Get the station information (e.g. station_id, station_name, ref_lat...)
 
@@ -242,8 +242,20 @@ class nisarcryodb():
             Pandas table with the station parameters
 
         '''
-        query = f"SELECT * FROM {schemaName}.{tableName};"
-        self.cursor.execute(query, {})
+        filterString = ''
+        substitutions = {}
+        for filt in filters:
+            print(filt)
+            if len(filterString) != 0:
+                filterString += ' AND '
+            else:
+                filterString = ' WHERE '
+            filterString += f"{filt} LIKE %({filt})s"
+            substitutions[filt] = filters[filt]
+        
+        query = f"SELECT * FROM {schemaName}.{tableName} {filterString};"
+        print(query)
+        self.cursor.execute(query, substitutions)
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
                                                           tableName,
@@ -370,8 +382,6 @@ class nisarcryodb():
 
         Parameters
         ----------
-        stationName : str
-            Station name (e.g., NIT3).
         date1 : "%Y-%m-%d" or datetime
             ASCII or datetime date for start of window.
         date2 :  "%Y-%m-%d" or datetime
