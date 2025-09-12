@@ -242,19 +242,12 @@ class nisarcryodb():
             Pandas table with the station parameters
 
         '''
-        filterString = ''
         substitutions = {}
-        for filt in filters:
-            print(filt)
-            if len(filterString) != 0:
-                filterString += ' AND '
-            else:
-                filterString = ' WHERE '
-            filterString += f"{filt} LIKE %({filt})s"
-            substitutions[filt] = filters[filt]
+        #
+        filterString = self._filterString(filters, substitutions, first=True)
         
         query = f"SELECT * FROM {schemaName}.{tableName} {filterString};"
-        print(query)
+        # print(query)
         self.cursor.execute(query, substitutions)
         return pd.DataFrame(self.cursor.fetchall(),
                             columns=self.listTableColumns(schemaName,
@@ -291,18 +284,15 @@ class nisarcryodb():
             GPS data for the station and date range..
 
         '''
+       
         stationID = self.stationNameToID(stationName, schemaName=schemaName)
         substitutions = {'val1': d1, 'val2': d2, 'station_id': stationID}
         #
-        filterString = ''
-        for filt in filters:
-            # print(filt)
-            filterString += f" AND {filt} = %({filt})s"
-            substitutions[filt] = filters[filt]
+        filterString = self._filterString(filters, substitutions, first=False)
         #
         query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
             "decimal_year BETWEEN %(val1)s AND %(val2)s AND " \
-            f"station_id = %(station_id)s  {filterString};"
+            f"station_id = %(station_id)s {filterString};"
         # print(query)
         # Perform query
         self.cursor.execute(query,
@@ -320,6 +310,30 @@ class nisarcryodb():
             return date.strftime(format)
         return date
 
+    def _filterString(self, filters, substitutions, first=True):
+        '''
+         process filter string
+
+        Parameters
+        ----------
+        filters : dict, optional
+            dict with field to filter and value to filter
+            (e.g., {'product_path': '%vv%'}, where % is a SQL wildcard)
+            Default is None
+        '''
+        filterString = ''
+        connector = {True: 'WHERE', False: 'AND'}[first]
+        for filt in filters:
+            print(filt)
+            if type(filters[filt]) is str:
+                operator = "LIKE"
+            else:
+                operator = "="
+            filterString += f" {connector} {filt} {operator} %({filt})s"
+            substitutions[filt] = filters[filt]
+            connector = 'AND'  # all subsequent filters are ands
+        return filterString
+            
     @rollBackOnError
     def getL3DateRangeData(self, date1, date2,
                            schemaName='landice', tableName='l3_product',
@@ -356,11 +370,7 @@ class nisarcryodb():
         #
         # Add additional filters to date filters
         substitutions = {'val1': date1, 'val2': date2}
-        filterString = ''
-        for filt in filters:
-            print(filt)
-            filterString += f" AND {filt} LIKE %({filt})s"
-            substitutions[filt] = filters[filt]
+        filterString =  self._filterString(filters, substitutions)
         #
         query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
                 f"start_date >= %(val1)s AND end_date <= %(val2)s " \
