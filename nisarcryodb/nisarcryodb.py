@@ -370,11 +370,13 @@ class nisarcryodb():
         #
         # Add additional filters to date filters
         substitutions = {'val1': date1, 'val2': date2}
-        filterString =  self._filterString(filters, substitutions)
+        filterString =  self._filterString(filters, substitutions, first=False)
+        # print(filterString)
         #
         query = f"SELECT * FROM {schemaName}.{tableName} WHERE " \
                 f"start_date >= %(val1)s AND end_date <= %(val2)s " \
                 f"{filterString} ORDER BY product_id;"
+        # print(query)
         #
         self.cursor.execute(query, substitutions)
         return pd.DataFrame(self.cursor.fetchall(),
